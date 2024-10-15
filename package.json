@@ -1,0 +1,15 @@
+{
+  "name": "dwallet-js-tests",
+  "version": "1.0.0",
+  "description": "Test JS",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@dwallet-network/dwallet.js": "^0.50.1",
+    "@dwallet-network/signature-mpc-wasm": "^0.2.1"
+  }
+}
