@@ -7,18 +7,15 @@ import {
     setActiveEncryptionKey,
     EncryptionKeyScheme,
     createActiveEncryptionKeysTable,
-    createPartialUserSignedMessages,
-    approveAndSign
+    getEncryptedUserShareByObjectID,
+    sendUserShareToSuiPubKey,
+    getEncryptedUserShareByObjID
 } from "@dwallet-network/dwallet.js/signature-mpc";
+import {serialized_pubkeys_from_decentralized_dkg_output} from '@dwallet-network/signature-mpc-wasm';
 import {requestSuiFromFaucetV0 as requestDwltFromFaucetV0} from '@dwallet-network/dwallet.js/faucet';
 
-// Note 1: this code corresponds this these docs:
-// https://github.com/dwallet-labs/dwallet-network/pull/288/files#diff-dd79ea94a1a746acd93933c8ae13fda533d4f1c9cc9e4a5ad0d5e2d94483dd11
-// Note 2: Do not change the versions of the dwallet imports!
 
-
-void (async function () {
-
+async function userShareEncryption() {
     // Create a new DWalletClient object pointing to the network you want to use.
     const client = new DWalletClient({
         transport: new SuiHTTPTransport({
@@ -27,6 +24,8 @@ void (async function () {
         }),
     });
     const keypair = new Ed25519Keypair();
+    const otherKeypair = new Ed25519Keypair();
+    ``
 
     // Get tokens from the Testnet faucet server.
     const response = await requestDwltFromFaucetV0({
@@ -36,7 +35,6 @@ void (async function () {
     });
 
     console.log(response);
-
 
     const encryptionKeysTable = await createActiveEncryptionKeysTable(client, keypair);
     let activeEncryptionKeysTableID = encryptionKeysTable.objectId;
@@ -54,60 +52,38 @@ void (async function () {
         pubKeyRef?.objectId!,
         activeEncryptionKeysTableID,
     );
-    const dkg = await createDWallet(keypair, client, encryptionKeyObj.encryptionKey, encryptionKeyObj.objectID);
+    const createdDwallet = await createDWallet(keypair, client, encryptionKeyObj.encryptionKey, encryptionKeyObj.objectID);
 
-    let {dwalletID} = dkg!;
+    let {dwalletID} = createdDwallet!;
     console.log("dwallet id ", dwalletID);
 
-    const bytes: Uint8Array = new TextEncoder().encode("dWallets are coming...");
-
-    const signMessagesIDSHA256 = await createPartialUserSignedMessages(
-        dkg?.dwalletID!,
-        dkg?.decentralizedDKGOutput!,
-        new Uint8Array(dkg?.secretKeyShare!),
-        [bytes],
-        'SHA256',
-        keypair,
-        client
+    // Get your encrypted user secret share.
+    let encryptedSecretShare = await getEncryptedUserShareByObjectID(
+        client,
+        createdDwallet?.encryptedSecretShareObjID!,
     );
 
-    console.log("signMessagesIDSHA256", signMessagesIDSHA256);
+    // Verify you signed the dkg output public keys before using it to send the user share.
+    let signedDWalletPubKeys = new Uint8Array(encryptedSecretShare?.signedDWalletPubKeys!);
+    console.log("signedDWalletPubKeys ", signedDWalletPubKeys);
 
-    const sigSHA256 = await approveAndSign(
-        dkg?.dwalletCapID!,
-        signMessagesIDSHA256!,
-        [bytes],
-        dkg?.dwalletID!,
-        'SHA256',
+    const res = await keypair
+        .getPublicKey()
+        .verify(
+            serialized_pubkeys_from_decentralized_dkg_output(
+                new Uint8Array(createdDwallet?.decentralizedDKGOutput!),
+            ),
+            signedDWalletPubKeys,
+        );
+
+    console.assert(res, "Failed to verify the signed dkg output public keys");
+
+    const objRef = await sendUserShareToSuiPubKey(
+        client,
         keypair,
-        client
+        createdDwallet!,
+        otherKeypair.getPublicKey(), // this is sent to you off-chain by the receiver
+        activeEncryptionKeysTableID,
+        signedDWalletPubKeys,
     );
-
-    console.log("sigSHA256", sigSHA256);
-
-    const signMessagesIDKECCAK256 = await createPartialUserSignedMessages(
-        dkg?.dwalletID!,
-        dkg?.decentralizedDKGOutput!,
-        new Uint8Array(dkg?.secretKeyShare!),
-        [bytes],
-        'KECCAK256',
-        keypair,
-        client
-    );
-
-    const sigKECCAK256 = await approveAndSign(
-        dkg?.dwalletCapID!,
-        signMessagesIDKECCAK256!,
-        [bytes],
-        dkg?.dwalletID!,
-        'KECCAK256',
-        keypair,
-        client
-    );
-
-
-    console.log('sigKECCAK256:');
-    console.log(sigKECCAK256);
-
-})()
-
+}
