@@ -22,7 +22,8 @@ void (async function () {
     // Create a new DWalletClient object pointing to the network you want to use.
     const client = new DWalletClient({
         transport: new SuiHTTPTransport({
-            url: 'http://fullnode.alpha.devnet.dwallet.cloud:9000',
+            // url: 'http://fullnode.alpha.devnet.dwallet.cloud:9000',
+            url: 'https://fullnode.alpha.testnet.dwallet.cloud',
             WebSocketConstructor: WebSocket as never,
         }),
     });
@@ -31,7 +32,7 @@ void (async function () {
     // Get tokens from the Testnet faucet server.
     const response = await requestDwltFromFaucetV0({
         // Connect to Testnet
-        host: 'http://faucet.alpha.devnet.dwallet.cloud/gas',
+        host: 'https://faucet.alpha.testnet.dwallet.cloud/gas',
         recipient: keypair.toSuiAddress(),
     });
 
@@ -94,6 +95,8 @@ void (async function () {
         keypair,
         client
     );
+
+    console.log("signMessagesIDKECCAK256", signMessagesIDKECCAK256);
 
     const sigKECCAK256 = await approveAndSign(
         dkg?.dwalletCapID!,
