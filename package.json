@@ -12,6 +12,7 @@
   "license": "ISC",
   "dependencies": {
     "@dwallet-network/dwallet.js": "^0.50.1",
+    "@mysten/sui.js": "^0.51.2",
     "@dwallet-network/signature-mpc-wasm": "^0.2.1",
     "axios": "^1.7.7",
     "bitcoinjs-lib": "^7.0.0-rc.0",

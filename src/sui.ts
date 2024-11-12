@@ -1,6 +1,10 @@
+// Copyright (c) Mysten Labs, Inc.
+// SPDX-License-Identifier: BSD-3-Clause-Clear
+
 import { bcs } from '@dwallet-network/dwallet.js/bcs'
 import {
   DWalletClient,
+  OwnedObjectRef,
   SuiHTTPTransport,
 } from '@dwallet-network/dwallet.js/client'
 import { requestSuiFromFaucetV0 as requestDwltFromFaucetV0 } from '@dwallet-network/dwallet.js/faucet'
@@ -14,272 +18,296 @@ import {
   submitTxStateProof,
 } from '@dwallet-network/dwallet.js/signature-mpc'
 import { SuiClient } from '@mysten/sui.js/client'
-// import { requestSuiFromFaucetV0 } from '@mysten/sui.js/faucet';
 import { TransactionBlock as TransactionBlockSUI } from '@mysten/sui.js/transactions'
 
-async function main() {
-  try {
-    const serviceUrl = 'http://localhost:6920/gettxdata' // For local development
-    // const serviceUrl = 'http://sui-testnet-light-client.testnet.dwallet.cloud/gettxdata';
+type NetworkConfig = {
+  // Service to get TX data from SUI, a temporary solution.
+  lightClientTxDataService: string
+  // The URL of the dWallet node.
+  dWalletNodeUrl: string
+  // The dwallet package ID in SUI network where the dWallet cap is defined.
+  dWalletCapPackageIDInSUI: string
+  // The SUI RPC URL (full node).
+  suiRPCURL: string
+  // The object ID of the registry in dWallet network.
+  dWalletRegistryObjectID: string
+  // The object ID of the config in dWallet network.
+  dWalletConfigObjectID: string
+  // The URL of the faucet in dwallet network.
+  dWalletFaucetURL: string
+}
 
-    const dWalletNodeUrl = 'http://127.0.0.1:9000'
-
-    const suiTestnetURL = 'https://fullnode.testnet.sui.io:443'
-
-    const dWalletCapPackageSUI =
-      '0x96c235dfd098a3e0404cfe5bf9c05bbc268b75649d051d4808019f5eb81d3eec'
-
-    const configObjectId =
-      '0xd0508ac7ca7ff62e3e03bdf830e5f5bbc8425c7be52bea40738904098ba554f6'
-    const registryObjectId =
-      '0xb388dfe5386b44415bff2a2f7c4926c7c76b38246ac78536e23fa0bf61f4d51a'
-
-    const sui_client = new SuiClient({ url: suiTestnetURL })
-    const dwallet_client = new DWalletClient({
-      transport: new SuiHTTPTransport({
-        url: dWalletNodeUrl,
-      }),
-    })
-
-    const messageSign: Uint8Array = new TextEncoder().encode(
-      'dWallets are coming... to Sui',
-    )
-
-    const keyPair = Ed25519Keypair.deriveKeypairFromSeed(
-      'witch collapse practice feed shame open despair creek road again ice least',
-    )
-    // const keyPair2 = Ed25519Keypair.generate();
-
-    const address = keyPair.getPublicKey().toSuiAddress()
-    // const address2 = keyPair2.getPublicKey().toSuiAddress();
-
-    console.log('address', address)
-    // console.log('address2', address);
-
-    console.log('SUI address', keyPair.toSuiAddress())
-    // console.log('SUI address2', keyPair2.toSuiAddress());
-
-    await requestDwltFromFaucetV0({
-      host: 'http://127.0.0.1:9123/gas',
-      recipient: keyPair.getPublicKey().toSuiAddress(),
-    })
-
-    // await requestDwltFromFaucetV0({
-    // 	host: 'http://127.0.0.1:9123/gas',
-    // 	recipient: keyPair2.getPublicKey().toSuiAddress(),
-    // });
-
-    // await requestSuiFromFaucetV0({
-    // 	host: 'https://faucet.testnet.sui.io',
-    // 	recipient: keyPair.getPublicKey().toSuiAddress(),
-    // });
-
-    // sleep for 5 seconds
-    await new Promise(resolve => setTimeout(resolve, 5000))
-
-    console.log('creating dwallet')
-
-    const encryptionKeysHolder = await createActiveEncryptionKeysTable(
-      dwallet_client,
-      keyPair,
-    )
-    // const encryptionKeysHolder2 = await createActiveEncryptionKeysTable(dwallet_client, keyPair2);
-
-    let activeEncryptionKeysTableID = encryptionKeysHolder.objectId
-    let senderEncryptionKeyObj = await getOrCreateEncryptionKey(
-      keyPair,
-      dwallet_client,
-      activeEncryptionKeysTableID,
-    )
-
-    // let activeEncryptionKeysTableID2 = encryptionKeysHolder2.objectId;
-    // let senderEncryptionKeyObj2 = await getOrCreateEncryptionKey(
-    // 	keyPair2,
-    // 	dwallet_client,
-    // 	activeEncryptionKeysTableID2,
-    // );
-
-    const createdDwallet1 = await createDWallet(
-      keyPair,
-      dwallet_client,
-      senderEncryptionKeyObj.encryptionKey,
-      senderEncryptionKeyObj.objectID,
-    )
-    const createdDwallet2 = await createDWallet(
-      keyPair,
-      dwallet_client,
-      senderEncryptionKeyObj.encryptionKey,
-      senderEncryptionKeyObj.objectID,
-    )
-
-    const createdDwallet3 = await createDWallet(
-      keyPair,
-      dwallet_client,
-      senderEncryptionKeyObj.encryptionKey,
-      senderEncryptionKeyObj.objectID,
-    )
-
-    if (createdDwallet1 == null || createdDwallet2 == null) {
-      throw new Error('createDWallet returned null')
-    }
-    let dwalletCapId1 = createdDwallet1?.dwalletCapID
-    let dWalletId1 = createdDwallet1?.dwalletID
-    // @ts-ignore
-    let dwalletCapId2 = createdDwallet2?.dwalletCapID
-    // let dWalletId2 = createdDwallet2?.dwalletID;
-
-    let dwalletCapId3 = createdDwallet3?.dwalletCapID
-
-    console.log('initialising dwallet cap with ID: ', dwalletCapId1)
-    let txb = new TransactionBlockSUI()
-
-    let dWalletCapArg1 = txb.pure(dwalletCapId1)
-    let dWalletCapArg2 = txb.pure(dwalletCapId2)
-    let dWalletCapArg3 = txb.pure(dwalletCapId3)
-
-    let [cap1] = txb.moveCall({
-      target: `${dWalletCapPackageSUI}::dwallet_cap::create_cap`,
-      arguments: [dWalletCapArg1],
-    })
-
-    let [cap2] = txb.moveCall({
-      target: `${dWalletCapPackageSUI}::dwallet_cap::create_cap`,
-      arguments: [dWalletCapArg2],
-    })
-    let [cap3] = txb.moveCall({
-      target: `${dWalletCapPackageSUI}::dwallet_cap::create_cap`,
-      arguments: [dWalletCapArg3],
-    })
-
-    let signMsgArg = txb.pure(
-      bcs.vector(bcs.vector(bcs.u8())).serialize([messageSign]),
-    )
-
-    txb.moveCall({
-      target: `${dWalletCapPackageSUI}::dwallet_cap::approve_message`,
-      arguments: [cap1, signMsgArg],
-    })
-
-    txb.transferObjects([cap1], keyPair.toSuiAddress())
-    txb.transferObjects([cap2], keyPair.toSuiAddress())
-    txb.transferObjects([cap3], keyPair.toSuiAddress())
-
-    txb.setGasBudget(10000000)
-
-    let res = await sui_client.signAndExecuteTransactionBlock({
-      signer: keyPair,
-      transactionBlock: txb,
-      options: {
-        showEffects: true,
-      },
-    })
-
-    const createCapTxId = res.digest
-    const signTxId = res.digest
-    // const approveMsgTxId = res.digest;
-
-    let first = res.effects?.created?.[0]
-    let ref
-    if (first) {
-      ref = first.reference.objectId
-      console.log('cap created', ref)
-    } else {
-      console.log('No objects were created')
-    }
-
-    // sleep for 10 seconds
-    await new Promise(resolve => setTimeout(resolve, 10000))
-
-    console.log('address', keyPair.getPublicKey().toSuiAddress())
-    console.log('dWalletId1', dwalletCapId1)
-    console.log('dWalletId2', dwalletCapId2)
-    console.log('dWalletId3', dwalletCapId3)
-    let resultFinal1 = await submitDWalletCreationProof(
-      dwallet_client,
-      sui_client,
-      configObjectId,
-      registryObjectId,
-      dwalletCapId1,
-      createCapTxId,
-      serviceUrl,
-      keyPair,
-    )
-    let resultFinal2 = await submitDWalletCreationProof(
-      dwallet_client,
-      sui_client,
-      configObjectId,
-      registryObjectId,
-      dwalletCapId2,
-      createCapTxId,
-      serviceUrl,
-      keyPair,
-    )
-
-    let resultFinal3 = await submitDWalletCreationProof(
-      dwallet_client,
-      sui_client,
-      configObjectId,
-      registryObjectId,
-      // @ts-ignore
-      dwalletCapId3,
-      createCapTxId,
-      serviceUrl,
-      keyPair,
-    )
-
-    console.log('creation done 1', resultFinal1)
-    console.log('creation done 2', resultFinal2)
-    console.log('creation done 3', resultFinal3)
-
-    const bytes: Uint8Array = new TextEncoder().encode(
-      'dWallets are coming... to Sui',
-    )
-
-    const signMessagesIdSHA256 = await createPartialUserSignedMessages(
-      createdDwallet1?.dwalletID!,
-      createdDwallet1?.decentralizedDKGOutput!,
-      new Uint8Array(createdDwallet1?.secretKeyShare!),
-      [bytes],
-      'SHA256',
-      keyPair,
-      dwallet_client,
-    )
-
-    console.log('created signMessages')
-
-    if (signMessagesIdSHA256 == null) {
-      throw new Error('createSignMessages returned null')
-    }
-
-    if (
-      resultFinal1.effects &&
-      Array.isArray(resultFinal1.effects.created) &&
-      typeof resultFinal1.effects.created[0] === 'object' &&
-      'reference' in resultFinal1.effects.created[0]
-    ) {
-      const capWrapperRef = resultFinal1.effects?.created?.[0].reference
-
-      console.log('A')
-
-      let res = await submitTxStateProof(
-        dwallet_client,
-        sui_client,
-        dWalletId1,
-        configObjectId,
-        registryObjectId,
-        capWrapperRef,
-        signMessagesIdSHA256,
-        signTxId,
-        serviceUrl,
-        keyPair,
-      )
-
-      console.log('res', res)
-      console.log('tx done')
-    }
-  } catch (error) {
-    console.error('Failed to retrieve transaction data:', error)
+function getLocalConf(): NetworkConfig {
+  return {
+    lightClientTxDataService: 'http://localhost:6920/gettxdata',
+    dWalletNodeUrl: 'http://127.0.0.1:9000',
+    dWalletFaucetURL: 'http://127.0.0.1:9123/gas',
+    dWalletCapPackageIDInSUI:
+      '0x96c235dfd098a3e0404cfe5bf9c05bbc268b75649d051d4808019f5eb81d3eec',
+    suiRPCURL: 'https://fullnode.testnet.sui.io',
+    dWalletRegistryObjectID:
+      '0x4de2a30287ed40600b53c40bfb3eeae7ef4ecf9ba9a90df732c363318612f084',
+    dWalletConfigObjectID:
+      '0xcc88a86628098c1472959ba6ad5e1c0fc0c1fd632b7ec21d265fb8efd5d55aea',
   }
 }
 
+function getTestNetConf(): NetworkConfig {
+  return {
+    lightClientTxDataService:
+      'https://lightclient-rest-server.alpha.testnet.dwallet.cloud/gettxdata',
+    dWalletNodeUrl: 'https://fullnode.alpha.testnet.dwallet.cloud',
+    dWalletFaucetURL: 'https://faucet.alpha.testnet.dwallet.cloud/gas',
+    dWalletCapPackageIDInSUI:
+      '0x96c235dfd098a3e0404cfe5bf9c05bbc268b75649d051d4808019f5eb81d3eec',
+    suiRPCURL: 'https://fullnode.testnet.sui.io:443',
+    dWalletRegistryObjectID:
+      '0x4de2a30287ed40600b53c40bfb3eeae7ef4ecf9ba9a90df732c363318612f084',
+    dWalletConfigObjectID:
+      '0xcc88a86628098c1472959ba6ad5e1c0fc0c1fd632b7ec21d265fb8efd5d55aea',
+  }
+}
+
+async function main() {
+  getLocalConf()
+
+  const {
+    dWalletConfigObjectID,
+    dWalletCapPackageIDInSUI,
+    dWalletNodeUrl,
+    lightClientTxDataService,
+    dWalletRegistryObjectID,
+    suiRPCURL,
+    dWalletFaucetURL,
+  } = getTestNetConf()
+
+  const msgStr = 'dWallets are coming... to Sui'
+  const message: Uint8Array = new TextEncoder().encode(msgStr)
+  const keyPair = Ed25519Keypair.deriveKeypairFromSeed(
+    'witch collapse practice feed shame open despair creek road again ice least',
+  )
+  const address = keyPair.getPublicKey().toSuiAddress()
+  console.log('Created Address', address)
+
+  await requestDwltFromFaucetV0({
+    host: dWalletFaucetURL,
+    recipient: address,
+  })
+
+  console.log('Creating dWallet')
+  const dwalletClient = new DWalletClient({
+    transport: new SuiHTTPTransport({
+      url: dWalletNodeUrl,
+    }),
+  })
+  const encryptionKeysHolder = await createActiveEncryptionKeysTable(
+    dwalletClient,
+    keyPair,
+  )
+  const activeEncryptionKeysTableID = encryptionKeysHolder.objectId
+  const senderEncryptionKeyObj = await getOrCreateEncryptionKey(
+    keyPair,
+    dwalletClient,
+    activeEncryptionKeysTableID,
+  )
+  const createdDWallet = await createDWallet(
+    keyPair,
+    dwalletClient,
+    senderEncryptionKeyObj.encryptionKey,
+    senderEncryptionKeyObj.objectID,
+  )
+  if (createdDWallet == null) {
+    throw new Error('createDWallet() returned null')
+  }
+  const dWalletCapID = createdDWallet.dwalletCapID
+
+  console.log(`Wrapping dWalletCapID: ${dWalletCapID} in Sui network`)
+  const dwalletCapTxB = await buildCreateDWalletCapTx(
+    dWalletCapID,
+    dWalletCapPackageIDInSUI,
+    keyPair,
+  )
+  const suiClient = new SuiClient({ url: suiRPCURL })
+  const createCapInSuiRes = await suiClient.signAndExecuteTransactionBlock({
+    signer: keyPair,
+    transactionBlock: dwalletCapTxB,
+    options: {
+      showEffects: true,
+    },
+  })
+  const createdCapObjInSui = createCapInSuiRes.effects?.created?.[0]
+  if (createdCapObjInSui) {
+    console.log(
+      `dWallet cap wrapper created in Sui network, ID: ${createdCapObjInSui.reference.objectId}`,
+    )
+  } else {
+    throw new Error('dwallet_cap::create_cap failed: No objects were created')
+  }
+
+  // Wait for 5 seconds to allow the Sui network to process the request.
+  await new Promise(resolve => setTimeout(resolve, 5 * 1000))
+
+  // The function on Sui Network dwallet_cap::create_cap emits an event — DWalletNetworkInitCapRequest.
+  // To prove on the dWallet Network that `DWalletNetworkInitCapRequest` event was emitted, call the
+  // `submitDWalletCreationProof()` function,
+  // which submits a state proof that the transaction on the Sui Network created a new `DWalletCap`.
+  // This will create a new `CapWrapper` object in dWallet Network, that wraps the `DWalletCap` and registers the
+  // corresponding `cap_id_sui` on Sui, thus forming the link between the two objects.
+  console.log(
+    `Submitting the Sui Network dWallet cap creation proof to dWallet network`,
+  )
+  const createCapInSuiTxID = createCapInSuiRes.digest
+  let dwalletCreationProofRes = await submitDWalletCreationProof(
+    dwalletClient,
+    suiClient,
+    dWalletConfigObjectID,
+    dWalletRegistryObjectID,
+    dWalletCapID,
+    createCapInSuiTxID,
+    lightClientTxDataService,
+    keyPair,
+  )
+  const capWrapperInDwalletRef =
+    dwalletCreationProofRes.effects?.created?.[0]?.reference
+  if (!capWrapperInDwalletRef) {
+    throw new Error(
+      'submitDWalletCreationProof failed: No objects were created',
+    )
+  }
+  console.log(
+    'dWallet cap wrapper creation proof created in dWallet Network, Tx ID:',
+    dwalletCreationProofRes.digest,
+  )
+
+  // Now that our dWallet is linked to a `DWalletCap` on Sui, its owner can use it to approve a message for signing.
+  // For example, if we want to sign the message `"dWallets are coming... to Sui"`, we can call the
+  // `dwallet_cap::approve_message()` method on Sui:
+  console.log(`Approving message: "${msgStr}" in Sui network`)
+  let approveMsgTxB = buildApproveMsgTx(
+    message,
+    dWalletCapPackageIDInSUI,
+    createdCapObjInSui,
+  )
+  let approveMsgRes = await suiClient.signAndExecuteTransactionBlock({
+    signer: keyPair,
+    transactionBlock: approveMsgTxB,
+    options: {
+      showEffects: true,
+    },
+  })
+  const approveMsgTxID = approveMsgRes.digest
+  console.log(
+    `Message "${msgStr}" approved in Sui network, TX ID: ${approveMsgTxID}`,
+  )
+
+  /// Sign the message in dWallet network.
+  console.log('Pre-Signing the message in dWallet network')
+  const signMessagesIDSHA256 = await createPartialUserSignedMessages(
+    createdDWallet.dwalletID,
+    createdDWallet.decentralizedDKGOutput,
+    new Uint8Array(createdDWallet.secretKeyShare),
+    [message],
+    'SHA256',
+    keyPair,
+    dwalletClient,
+  )
+  if (signMessagesIDSHA256 == null) {
+    throw new Error('createPartialUserSignedMessages returned null')
+  }
+  console.log('Pre-Sign message ID:', signMessagesIDSHA256)
+
+  // Next, call the `submitTxStateProof()` function, which will submit a state proof to the dWallet network that this
+  // transaction on Sui network approved this message for signing.
+  console.log('Signing the message in dWallet network')
+  const res = await submitTxStateProof(
+    dwalletClient,
+    suiClient,
+    createdDWallet.dwalletID,
+    dWalletConfigObjectID,
+    dWalletRegistryObjectID,
+    capWrapperInDwalletRef,
+    signMessagesIDSHA256,
+    approveMsgTxID,
+    lightClientTxDataService,
+    keyPair,
+  )
+  console.log('submitTxStateProof result', res)
+}
+
 main()
+  .then(() => console.log('Done'))
+  .catch(e => console.error(e))
+
+/**
+ * Emits an event to notify the initialization of a new dWallet capability.
+ *
+ * event::emit(DWalletNetworkInitCapRequest {
+ *     // The object ID of the newly created `DWalletCap` object.
+ *     cap_id: object::id(&cap),
+ *     // The object ID of the dWallet capability on the dWallet Network that you wish to control.
+ *     dwallet_network_cap_id,
+ * });
+ */
+async function buildCreateDWalletCapTx(
+  dwalletCapID: string | undefined,
+  dWalletCapPackageIDInSUI: string,
+  keyPair: Ed25519Keypair,
+) {
+  let txb = new TransactionBlockSUI()
+  let dWalletCapArg = txb.pure(dwalletCapID)
+  let [cap] = txb.moveCall({
+    target: `${dWalletCapPackageIDInSUI}::dwallet_cap::create_cap`,
+    arguments: [dWalletCapArg],
+  })
+  txb.transferObjects([cap], keyPair.toSuiAddress())
+  txb.setGasBudget(10000000)
+  return txb
+}
+
+function buildApproveMsgTx(
+  message: Uint8Array,
+  dWalletCapPackageIDInSUI: string,
+  createdCapObjInSui: OwnedObjectRef,
+) {
+  let txb = new TransactionBlockSUI()
+
+  let signMsgArg = txb.pure(
+    bcs.vector(bcs.vector(bcs.u8())).serialize([message]),
+  )
+  const createdCapObjInSuiArg = txb.objectRef(createdCapObjInSui.reference)
+  // Approve the message for the given dWallet cap.
+  txb.moveCall({
+    target: `${dWalletCapPackageIDInSUI}::dwallet_cap::approve_message`,
+    arguments: [createdCapObjInSuiArg, signMsgArg],
+  })
+  txb.setGasBudget(10000000)
+
+  return txb
+}
+
+// Create the capability and approve the message in a single transaction.
+async function buildCreateDWalletCapAndApproveTx(
+  dwalletCapID: string | undefined,
+  dWalletCapPackageIDInSUI: string,
+  keyPair: Ed25519Keypair,
+  msgToSign: Uint8Array,
+) {
+  let txb = new TransactionBlockSUI()
+  let dWalletCapArg = txb.pure(dwalletCapID)
+  let [cap] = txb.moveCall({
+    target: `${dWalletCapPackageIDInSUI}::dwallet_cap::create_cap`,
+    arguments: [dWalletCapArg],
+  })
+  let signMsgArg = txb.pure(
+    bcs.vector(bcs.vector(bcs.u8())).serialize([msgToSign]),
+  )
+
+  // Approve the message for the given dWallet cap.
+  txb.moveCall({
+    target: `${dWalletCapPackageIDInSUI}::dwallet_cap::approve_message`,
+    arguments: [cap, signMsgArg],
+  })
+  txb.transferObjects([cap], keyPair.toSuiAddress())
+  txb.setGasBudget(10000000)
+  return txb
+}
