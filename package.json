@@ -16,7 +16,7 @@
     "@dwallet-network/signature-mpc-wasm": "^0.2.1",
     "axios": "^1.7.7",
     "bitcoinjs-lib": "^7.0.0-rc.0",
-    "elliptic": "^6.6.0"
+    "elliptic": "^6.6.1"
   },
   "devDependencies": {
     "@types/elliptic": "^6.4.18",
